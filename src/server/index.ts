@@ -7,14 +7,33 @@ import { getManifestFile, parseEnvBytes } from "./utils";
 async function getBunServeConfig(): Promise<Parameters<typeof Bun.serve>[0]> {
   const { manifest } = await getManifestFile();
   const kitServer = await buildKitServer(manifest);
+  const routes = await buildRoutes();
 
   return {
     port: env.PORT,
     hostname: env.HOST,
     maxRequestBodySize: parseEnvBytes(env.BODY_SIZE_LIMIT),
     development: env.DEV_MODE,
-    routes: await buildRoutes(),
     async fetch(req, srv) {
+      const pathname = new URL(req.url).pathname;
+      
+      // Skip static route matching for SvelteKit server function endpoints
+      if (!pathname.startsWith('/_app/remote/')) {
+        // Try to match against registered routes (static/prerendered)
+        for (const [pattern, handler] of Object.entries(routes)) {
+          // Convert Bun route pattern to regex for matching
+          const regexPattern = pattern
+            .replace(/\*/g, '.*')
+            .replace(/\//g, '\\/');
+          const regex = new RegExp(`^${regexPattern}$`);
+          
+          if (regex.test(pathname)) {
+            return await handler(req, srv);
+          }
+        }
+      }
+      
+      // Pass to SvelteKit for SSR/server functions/API routes
       return await handleSSRRequest(req, srv, kitServer);
     },
     error(e: Error) {

@@ -8,9 +8,12 @@ export function handleSSRRequest(
   kit_server: KitServer,
 ): Promise<Response> {
   const baseOrigin = env.ORIGIN || get_origin(originalRequest.headers);
-  const url = originalRequest.url.slice(originalRequest.url.split("/", 3).join("/").length);
+  
+  // Parse the original URL to get pathname and search params
+  const originalUrl = new URL(originalRequest.url);
+  const pathAndQuery = originalUrl.pathname + originalUrl.search;
 
-  const request = new Request(`${baseOrigin}${url}`, {
+  const request = new Request(`${baseOrigin}${pathAndQuery}`, {
     method: originalRequest.method,
     headers: originalRequest.headers,
     body: originalRequest.body,
@@ -20,7 +23,7 @@ export function handleSSRRequest(
 
   return kit_server.respond(request, {
     getClientAddress() {
-      return bun_server.requestIP(request)?.address || "127.0.0.1";
+      return bun_server.requestIP(originalRequest)?.address || "127.0.0.1";
     },
     platform: {
       isBun: () => true,
