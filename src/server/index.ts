@@ -17,19 +17,22 @@ async function getBunServeConfig(): Promise<Parameters<typeof Bun.serve>[0]> {
     async fetch(req, srv) {
       const pathname = new URL(req.url).pathname;
       
-      // Skip static route matching for SvelteKit server function endpoints
-      if (!pathname.startsWith('/_app/remote/')) {
-        // Try to match against registered routes (static/prerendered)
-        for (const [pattern, handler] of Object.entries(routes)) {
-          // Convert Bun route pattern to regex for matching
-          const regexPattern = pattern
-            .replace(/\*/g, '.*')
-            .replace(/\//g, '\\/');
-          const regex = new RegExp(`^${regexPattern}$`);
-          
-          if (regex.test(pathname)) {
-            return await handler(req, srv);
-          }
+      // Try to match against registered routes (static/prerendered)
+      for (const [pattern, handler] of Object.entries(routes)) {
+        // Skip the generic /_app/* pattern for /_app/remote/* paths
+        // to let them fall through to Kit server
+        if (pathname.startsWith('/_app/remote/') && pattern === '/_app/*') {
+          continue;
+        }
+        
+        // Convert Bun route pattern to regex for matching
+        const regexPattern = pattern
+          .replace(/\*/g, '.*')
+          .replace(/\//g, '\\/');
+        const regex = new RegExp(`^${regexPattern}$`);
+        
+        if (regex.test(pathname)) {
+          return await handler(req, srv);
         }
       }
       
